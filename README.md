@@ -28,6 +28,7 @@ cargo install arc-dev --locked
 
 ```sh
 brew tap veliuysal/tap
+brew trust veliuysal/tap
 brew install arc-dev
 ```
 
