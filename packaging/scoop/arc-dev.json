@@ -1,0 +1,23 @@
+{
+  "version": "0.1.0",
+  "description": "Command-line tools for Arc network development",
+  "homepage": "https://github.com/veliuysal/arc-dev",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/veliuysal/arc-dev/releases/download/v0.1.0/arc-dev-0.1.0-x86_64-pc-windows-msvc.zip",
+      "hash": "UPDATE_AFTER_RELEASE"
+    }
+  },
+  "bin": "arc-dev.exe",
+  "checkver": {
+    "github": "https://github.com/veliuysal/arc-dev"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/veliuysal/arc-dev/releases/download/v$version/arc-dev-$version-x86_64-pc-windows-msvc.zip"
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+  publish-cargo:
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo publish --locked --token "${{ secrets.CARGO_REGISTRY_TOKEN }}"
+
+  publish-package-managers:
+    needs: release
+    runs-on: ubuntu-latest
+    if: ${{ secrets.PACKAGE_MANAGERS_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sync package manager repositories
+        env:
+          GH_TOKEN: ${{ secrets.PACKAGE_MANAGERS_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          version="${VERSION#v}"
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/veliuysal/homebrew-tap.git" /tmp/homebrew-tap
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/veliuysal/scoop-bucket.git" /tmp/scoop-bucket
+          cp packaging/homebrew/arc-dev.rb /tmp/homebrew-tap/Formula/arc-dev.rb
+          cp packaging/scoop/arc-dev.json /tmp/scoop-bucket/arc-dev.json
+          HOMEBREW_FORMULA=/tmp/homebrew-tap/Formula/arc-dev.rb \
+          SCOOP_MANIFEST=/tmp/scoop-bucket/arc-dev.json \
+            bash scripts/update-package-managers.sh "$version"
+          for repo in homebrew-tap scoop-bucket; do
+            cd "/tmp/${repo}"
+            git add .
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git diff --staged --quiet || git commit -m "arc-dev ${version}"
+            git push origin main
+          done
