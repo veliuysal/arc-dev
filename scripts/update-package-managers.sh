@@ -43,28 +43,33 @@ declare -A ASSETS=(
 )
 
 echo "Fetching checksums for arc-dev v${VERSION}"
-CHECKSUM_LINES=()
+declare -A CHECKSUMS=()
 for target in "${!ASSETS[@]}"; do
   asset="${ASSETS[$target]}"
   url="https://github.com/${REPO}/releases/download/v${VERSION}/${asset}"
   echo "  ${asset}"
-  checksum="$(curl -fsSL "$url" | shasum -a 256 | awk '{print $1}')"
-  CHECKSUM_LINES+=("${target}=${checksum}")
+  CHECKSUMS[$target]="$(curl -fsSL "$url" | shasum -a 256 | awk '{print $1}')"
 done
 
-export REPO VERSION HOMEBREW_FORMULA SCOOP_MANIFEST
-export CHECKSUM_DATA="${CHECKSUM_LINES[*]}"
+json_entries=()
+for target in "${!CHECKSUMS[@]}"; do
+  json_entries+=("\"${target}\": \"${CHECKSUMS[$target]}\"")
+done
+CHECKSUM_JSON="{ $(IFS=','; echo "${json_entries[*]}") }"
 
-python3 <<'PY'
+export REPO VERSION HOMEBREW_FORMULA SCOOP_MANIFEST CHECKSUM_JSON
+python3 - "$HOMEBREW_FORMULA" "$SCOOP_MANIFEST" <<'PY'
+import json
 import os
 import re
+import sys
 from pathlib import Path
 
+formula = Path(sys.argv[1])
+scoop = Path(sys.argv[2])
 version = os.environ["VERSION"]
 repo = os.environ["REPO"]
-formula = Path(os.environ["HOMEBREW_FORMULA"])
-scoop = Path(os.environ["SCOOP_MANIFEST"])
-checksums = dict(item.split("=", 1) for item in os.environ["CHECKSUM_DATA"].split())
+checksums = json.loads(os.environ["CHECKSUM_JSON"])
 
 text = formula.read_text()
 text = re.sub(r'version "[^"]+"', f'version "{version}"', text, count=1)
@@ -74,22 +79,27 @@ text = re.sub(
     text,
 )
 text = re.sub(
-    r"arc-dev-[^-]+-[^-]+-(aarch64-apple-darwin|x86_64-apple-darwin|aarch64-unknown-linux-gnu|x86_64-unknown-linux-gnu)\.tar\.gz",
+    r"arc-dev-[\d.]+-(aarch64-apple-darwin|x86_64-apple-darwin|aarch64-unknown-linux-gnu|x86_64-unknown-linux-gnu)\.tar\.gz",
     lambda match: f"arc-dev-{version}-{match.group(1)}.tar.gz",
     text,
 )
 
-for target, key in [
-    ("aarch64-apple-darwin", "aarch64-apple-darwin"),
-    ("x86_64-apple-darwin", "x86_64-apple-darwin"),
-    ("aarch64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"),
-    ("x86_64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"),
-]:
-    pattern = (
-        rf'(url "https://github.com/{re.escape(repo)}/releases/download/v{re.escape(version)}/'
-        rf'arc-dev-{re.escape(version)}-{target}\.tar\.gz"\n\s+sha256 ")[^"]+(")'
-    )
-    text = re.sub(pattern, rf'\1{checksums[key]}\2', text)
+for target in (
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu",
+):
+    marker = f'arc-dev-{version}-{target}.tar.gz"'
+    start = text.find(marker)
+    if start == -1:
+        raise SystemExit(f"could not find homebrew asset marker for {target}")
+    sha_start = text.find('sha256 "', start)
+    if sha_start == -1:
+        raise SystemExit(f"could not find sha256 field for {target}")
+    sha_value_start = sha_start + len('sha256 "')
+    sha_end = text.find('"', sha_value_start)
+    text = text[:sha_value_start] + checksums[target] + text[sha_end:]
 
 formula.write_text(text)
 
@@ -101,11 +111,15 @@ scoop_text = re.sub(
     scoop_text,
     count=1,
 )
-scoop_text = re.sub(
-    r'"hash": "[^"]+"',
-    f'"hash": "{checksums["x86_64-pc-windows-msvc"]}"',
-    scoop_text,
-    count=1,
+hash_start = scoop_text.find('"hash": "')
+if hash_start == -1:
+    raise SystemExit("could not find scoop hash field")
+hash_value_start = hash_start + len('"hash": "')
+hash_end = scoop_text.find('"', hash_value_start)
+scoop_text = (
+    scoop_text[:hash_value_start]
+    + checksums["x86_64-pc-windows-msvc"]
+    + scoop_text[hash_end:]
 )
 scoop.write_text(scoop_text)
 PY

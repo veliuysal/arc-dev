@@ -18,11 +18,15 @@ ARC_DEV_REPO=your-org/arc-dev ARC_DEV_VERSION=0.1.0 \
   curl -fsSL https://raw.githubusercontent.com/your-org/arc-dev/main/scripts/install.sh | bash
 ```
 
-### Cargo
+### Cargo (prebuilt binary)
+
+Install [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), then:
 
 ```sh
-cargo install arc-dev --locked
+cargo binstall arc-dev
 ```
+
+This downloads the release binary. It does not compile source.
 
 ### Homebrew
 
@@ -39,21 +43,13 @@ scoop bucket add veliuysal https://github.com/veliuysal/scoop-bucket
 scoop install arc-dev
 ```
 
-### From source
-
-```sh
-git clone https://github.com/veliuysal/arc-dev.git
-cd arc-dev
-cargo install --path . --locked
-```
-
 The executable is named `arc-dev`. After installation, verify with:
 
 ```sh
 arc-dev --version
 ```
 
-Publishing notes for maintainers live in [`packaging/README.md`](packaging/README.md).
+Publishing notes: https://github.com/veliuysal/arc-dev/blob/main/packaging/README.md
 
 ## Build
 
